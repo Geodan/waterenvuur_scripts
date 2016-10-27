@@ -7,11 +7,11 @@ def parse_arguments():
     parser = ArgumentParser(description='Fetches latest spot image from neo server')
     parser.add_argument('-u', '--url', help='url to grab from', default='https://secure.neography.nl/satellietbeeld.nl/download/index.php',
                         required=False)
-    parser.add_argument('-f', '--file', help='filename', default='latest',
+    parser.add_argument('-f', '--filename', help='filename', default='latest',
                         required=False)
-    parser.add_argument('-u', '--user', help='username', 
+    parser.add_argument('-U', '--user', help='username for neography server', 
                         required=True)
-    parser.add_argument('-p', '--pass', help='password', 
+    parser.add_argument('-P', '--password', help='password', 
                         required=True)
     args = parser.parse_args()
     return args
@@ -30,8 +30,9 @@ def main():
 	args = parse_arguments()
 	uri = args.url
 	filename = args.filename
+
 	username = args.user
-	password = args.pass
+	password = args.password
 	
 	payload = {
 		'act': 'dologin',
@@ -42,13 +43,22 @@ def main():
 	r_login  = s.post(uri, data=payload)
 	response = s.get(uri, params={'sort':'date'})
 	soup = BeautifulSoup(response.text, "lxml")
-	table = soup.find('table')
-	rows = table.find_all('tr')
+	 
+	
+	try:
+		table = soup.find('table')
+		rows = table.find_all('tr')
+	except AttributeError as e:
+		try:
+			soup.find_all("class", class_="login")
+			print "Login seems to have failed"
+			return 1
+		except:
+			raise ValueError("No valid data found in output")
 	table_data = parse_rows(rows)
 	for row in table_data:
 		if len(row) == 4:
-			filename = row[1]
-			uri= 'https://secure.neography.nl/satellietbeeld.nl/download/index.php'
+			filename = row[1] if filename == 'latest' else filename
 			params = {'method':'getfile','file':filename}
 			print 'Downloading ' + filename
 			download = s.get(uri, params=params, stream=True)

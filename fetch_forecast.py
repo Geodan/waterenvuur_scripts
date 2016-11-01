@@ -1,13 +1,13 @@
 import sys
-from bs4 import BeautifulSoup
 from argparse import ArgumentParser
 import requests	
 import json
 import csv
 
 def parse_arguments():
-    parser = ArgumentParser(description='Fetches latest spot image from neo server')
-    parser.add_argument('-k', '--key', help='apikey for wunderground', default='cbcdb10cae6e3b61',
+    parser = ArgumentParser(description='Fetches latest weather forecast for next 10 days from wunderground')
+    #key is based on the account: waterenvuurmanager@gmail.com
+    parser.add_argument('-k', '--key', help='apikey for wunderground', default='be8a560b17cc78f1',
                         required=False)
     parser.add_argument('-o', '--outdir', help='output directory', default='./',
                         required=False)
@@ -19,11 +19,15 @@ def main():
 	args = parse_arguments()
 	key = args.key
 	outdir = args.outdir
-	uri = 'http://api.wunderground.com/api/'+key+'/forecast10day/q/NL/Amsterdam.json'
+	uri = 'http://api.wunderground.com/api/'+key+'/forecast10day/q/NL/Amersfoort.json'
 	s = requests.Session()
 	response = s.get(uri)
 	outfile= 'forecast.csv'
 	data = json.loads(response.text)
+	if ('error' in data['response']):
+		print 'Error: ' + data['response']['error']['type'] + '  ' + data['response']['error']['description'] 
+		return 1
+	
 	days = data['forecast']['simpleforecast']['forecastday']
 	with open(outdir + '/' + outfile, 'wb') as csvfile:
 		csvwriter = csv.writer(csvfile, delimiter=',')
@@ -32,18 +36,18 @@ def main():
 				'date',
 				'Tlo',
 				'Thi',
-				'havg',
-				'hmin',
-				'hmax',
+				'Havg',
+				'Hmin',
+				'Hmax',
 				'qpf_allday',
 				'qpf_day',
 				'snow_allday',
 				'snow_day',
 				'snow_night',
 				'Vmaxwind',
-				'dmaxwind',
+				'dirmaxwind',
 				'Vavewind',
-				'davewind'
+				'diravewind'
 			])
 		for day in days:
 			csvwriter.writerow([

@@ -33,9 +33,15 @@ def main():
 	ftp.retrbinary("RETR " + filename, open(outdir+'/'+filename,"wb").write)
 	ftp.quit()
 	print 'processing'
-	filename = 'RAD_NL25_RAC_24H_201610300800.h5'
 	rootgrp = Dataset(outdir+'/'+filename, "r", format="NETCDF4")
-	data = np.array(rootgrp.groups['image1']['image_data'])
+	PV = np.array(rootgrp.groups['image1']['image_data'])
+	cal = rootgrp.groups['image1']['calibration'].calibration_formulas.replace('GEO =','')
+	def calibrate(PV):
+		if (PV == 65535): 
+			return PV
+		return eval(cal)
+	#caldata = map(calibrate,data)
+	caldata = eval(cal)
 	
 	x_pixels = 700  # number of pixels in x
 	y_pixels = 765  # number of pixels in y
@@ -57,8 +63,8 @@ def main():
 		gdal.GDT_Float32, )
 	dataset.SetProjection(wkt_projection)
 	dataset.SetGeoTransform((x_min, PIXEL_SIZE, 0, y_max, 0, -PIXEL_SIZE))
-	dataset.GetRasterBand(1).WriteArray(data)
-	dataset.GetRasterBand(1).SetNoDataValue(65535)
+	dataset.GetRasterBand(1).WriteArray(caldata)
+	dataset.GetRasterBand(1).SetNoDataValue(655.35)
 	dataset.FlushCache()  # Write to disk.
 	print 'saved as ' + outdir+'/'+filename.replace('.h5','.tif')
 	print 'warping a copy to wgs84'

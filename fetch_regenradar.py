@@ -13,28 +13,30 @@ def parse_arguments():
 	parser.add_argument('-o', '--outdir', help='output directory', default='./',required=False)
 	args = parser.parse_args()
 	return args
-		
+    
 def main():
 	args = parse_arguments()
 	uri = args.url
 	d = datetime.today() - timedelta(days=2)
 	filelist = []
-	#ftp = FTP(uri)
-	#ftp.login()
-	#ftp.cwd('download/radar_corr_accum_24h/1.0/noversion/'+str(d.year)+'/'+str(d.month)+'/'+str(d.day)+'/')
-	#ftp.dir('-t',filelist.append)
-	#for i, r in enumerate(filelist):
-	#	filelist[i] = r.split()
-	#filelist.sort(key = lambda x : x[8])
-	#filelist.reverse()
-	#filename = filelist[0][8]
+	print 'downloading data'
+	ftp = FTP(uri)
+	ftp.login()
+	ftp.cwd('download/radar_corr_accum_24h/1.0/noversion/'+str(d.year)+'/'+str(d.month)+'/'+str(d.day)+'/')
+	ftp.dir('-t',filelist.append)
+	for i, r in enumerate(filelist):
+		filelist[i] = r.split()
+	filelist.sort(key = lambda x : x[8])
+	filelist.reverse()
+	filename = filelist[0][8]
 	outdir = args.outdir
-	#ftp.retrbinary("RETR " + filename, open(outdir+'/'+filename,"wb").write)
-	#ftp.quit()
+	ftp.retrbinary("RETR " + filename, open(outdir+'/'+filename,"wb").write)
+	ftp.quit()
+	print 'processing'
 	filename = 'RAD_NL25_RAC_24H_201610300800.h5'
 	rootgrp = Dataset(outdir+'/'+filename, "r", format="NETCDF4")
 	data = np.array(rootgrp.groups['image1']['image_data'])
-
+	
 	x_pixels = 700  # number of pixels in x
 	y_pixels = 765  # number of pixels in y
 	PIXEL_SIZE = 1  # size of the pixel...        
@@ -53,13 +55,36 @@ def main():
 		y_pixels,
 		1,       
 		gdal.GDT_Float32, )
-	print y_max;
 	dataset.SetProjection(wkt_projection)
 	dataset.SetGeoTransform((x_min, PIXEL_SIZE, 0, y_max, 0, -PIXEL_SIZE))
 	dataset.GetRasterBand(1).WriteArray(data)
 	dataset.GetRasterBand(1).SetNoDataValue(65535)
 	dataset.FlushCache()  # Write to disk.
-		
+	print 'saved as ' + outdir+'/'+filename.replace('.h5','.tif')
+	print 'warping a copy to wgs84'
+	# Open source dataset
+	src_ds = gdal.Open(outdir+'/'+filename.replace('.h5','.tif'))
+	
+	# Define target SRS
+	dst_srs = osr.SpatialReference()
+	dst_srs.ImportFromEPSG(4326)
+	dst_wkt = dst_srs.ExportToWkt()
+	
+	error_threshold = 0.125  # error threshold --> use same value as in gdalwarp
+	resampling = gdal.GRA_NearestNeighbour
+	
+	# Call AutoCreateWarpedVRT() to fetch default values for target raster dimensions and geotransform
+	tmp_ds = gdal.AutoCreateWarpedVRT( src_ds,
+									   None, # src_wkt : left to default value --> will use the one from source
+									   dst_wkt,
+									   resampling,
+									   error_threshold )
+	
+	# Create the final warped raster
+	dst_ds = gdal.GetDriverByName('GTiff').CreateCopy(outdir+'/'+filename.replace('.h5','_wgs84.tif'), tmp_ds)
+	dst_ds = None
+	print 'done'
+	
 
 if __name__ == '__main__':
     status = main()

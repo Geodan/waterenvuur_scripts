@@ -1,13 +1,16 @@
 import sys
 from bs4 import BeautifulSoup
 from argparse import ArgumentParser
-import requests	
+import requests
+import json
 
 def parse_arguments():
     parser = ArgumentParser(description='Fetches latest spot image from neo server')
     parser.add_argument('-u', '--url', help='url to grab from', default='https://secure.neography.nl/satellietbeeld.nl/download/index.php',
                         required=False)
-    parser.add_argument('-f', '--filename', help='filename', default='latest',
+    parser.add_argument('-f', '--filename', help='filename to download (keep empty for latest file)', default='latest',
+                        required=False)
+    parser.add_argument('-o', '--outdir', help='output directory', default='./',
                         required=False)
     parser.add_argument('-U', '--user', help='username for neography server', 
                         required=True)
@@ -16,6 +19,14 @@ def parse_arguments():
     args = parser.parse_args()
     return args
 
+
+def getlist():
+	uri = 'http://www.satellietbeeld.nl/search.php'
+	s = requests.Session()
+	response = s.get(uri)
+	data = json.loads(response.text)
+	features = data['features']
+	spot6images = filter(lambda s: s.startswith('S6'), features)
 
 def parse_rows(rows):
     results = []
@@ -29,6 +40,7 @@ def main():
 	s = requests.Session()
 	args = parse_arguments()
 	uri = args.url
+	outdir = args.outdir
 	filename = args.filename
 
 	username = args.user
@@ -62,9 +74,11 @@ def main():
 			params = {'method':'getfile','file':filename}
 			print 'Downloading ' + filename
 			download = s.get(uri, params=params, stream=True)
-			with open(filename, 'wb') as fd:
+			with open(outdir+'/'+filename, 'wb') as fd:
 				for chunk in download.iter_content(1024):
 					fd.write(chunk)
+			print 'file saved to ' + outdir+'/'+filename
+			print 'done'
 			exit()
 
 if __name__ == '__main__':
